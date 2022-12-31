@@ -1,0 +1,16 @@
+.dub
+docs.json
+__dummy.html
+docs/
+/unbound-control
+unbound-control.so
+unbound-control.dylib
+unbound-control.dll
+unbound-control.a
+unbound-control.lib
+unbound-control-test-*
+*.exe
+*.pdb
+*.o
+*.obj
+*.lst

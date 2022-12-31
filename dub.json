@@ -1,0 +1,10 @@
+{
+	"authors": [
+		"Tristan B. Velloza Kildaire"
+	],
+	"copyright": "Copyright © 2022, Tristan B. Velloza Kildaire",
+	"description": "Programatic method of controlling unbound",
+	"license": "LGPL 3.0",
+	"name": "unbound-control",
+	"targetType": "library"
+}
