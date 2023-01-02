@@ -249,7 +249,19 @@ public final class UnboundControl
 						}
 						else if(recordType == RecordType.SOA)
 						{
+							string[] soaSegments = split(recordInfoSegments[4], " ");
+							curRecord.value = soaSegments[0];
+
 							// TODO: Implement SOA handling
+							string soaEmail = soaSegments[1];
+							ulong[] soaTuple = [to!(ulong)(soaSegments[2]),
+												to!(ulong)(soaSegments[3]),
+												to!(ulong)(soaSegments[4]),
+												to!(ulong)(soaSegments[5]),
+												to!(ulong)(soaSegments[6])];
+							
+							curRecord.soaEmail = soaEmail;
+							curRecord.soaTuple = soaTuple;
 						}
 						else
 						{
@@ -307,6 +319,8 @@ public struct Record
 	RecordType recordType;
 	string value;
 	ulong ttl;
+	string soaEmail;
+	ulong[] soaTuple;
 }
 
 unittest
