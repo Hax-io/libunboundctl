@@ -6,6 +6,7 @@ import std.conv : to;
 import core.sys.posix.unistd;
 import core.sys.posix.sys.wait;
 import std.string : strip;
+import std.string : toLower;
 
 public enum RecordType
 {
@@ -13,6 +14,11 @@ public enum RecordType
 	AAAA,
 	CNAME,
 	NS
+}
+
+public enum ZoneType
+{
+	STATIC
 }
 
 private ulong cStringLen(char* cString)
@@ -56,7 +62,7 @@ public final class UnboundControl
 	 *
 	 * Returns: true if successful, false otherwise
 	 */
-	private bool ctl(string command, string data, ref string cmdOut)
+	private final bool ctl(string command, string data, ref string cmdOut)
 	{
 		// Creates a pipe to collect stdout from `unbound-control`
 		Pipe pipe = pipeCreate();
@@ -124,11 +130,31 @@ public final class UnboundControl
 			}
 		}
 	}
+
+	public void addLocalZone(string zone, ZoneType zoneType)
+	{
+		string dataOut;
+		
+		// Convert zonetype from (e.g. `STATIC`) to (e.g. `static`)
+		string zoneTypeStr = toLower(to!(string)(zoneType));
+
+		bool status = ctl("local_zone", zone~" "~zoneTypeStr, dataOut);
+	}
+
+	public void verbosity(ulong level)
+	{
+		string dataOut;
+
+		bool status = ctl("verbosity", to!(string)(level), dataOut);
+	}
 }
 
 unittest
 {
 	UnboundControl unboundCtl = new UnboundControl("::1@8953");
-	unboundCtl.addLocalData("deavmi.hax.", RecordType.A, "69.69.69.20");
+	unboundCtl.verbosity(5);
+	unboundCtl.addLocalZone("hax.", ZoneType.STATIC);
+	unboundCtl.addLocalData("deavmi.hax.", RecordType.A, "127.0.0.1");
+	unboundCtl.addLocalData("deavmi.hax.", RecordType.AAAA, "::1");
 }
 
