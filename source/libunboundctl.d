@@ -141,6 +141,20 @@ public final class UnboundControl
 		bool status = ctl("local_zone", zone~" "~zoneTypeStr, dataOut);
 	}
 
+	public void removeLocalZone(string zone)
+	{
+		string dataOut;
+		
+		bool status = ctl("local_zone_remove", zone, dataOut);
+	}
+
+	public void removeLocalData(string domain)
+	{
+		string dataOut;
+		
+		bool status = ctl("local_data_remove", domain, dataOut);
+	}
+
 	public void verbosity(ulong level)
 	{
 		string dataOut;
@@ -156,5 +170,9 @@ unittest
 	unboundCtl.addLocalZone("hax.", ZoneType.STATIC);
 	unboundCtl.addLocalData("deavmi.hax.", RecordType.A, "127.0.0.1");
 	unboundCtl.addLocalData("deavmi.hax.", RecordType.AAAA, "::1");
+
+	unboundCtl.removeLocalData("deavmi.hax.");
+
+	unboundCtl.removeLocalZone("hax.");
 }
 
