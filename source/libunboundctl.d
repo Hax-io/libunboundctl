@@ -6,20 +6,8 @@ import std.conv : to;
 import core.sys.posix.unistd;
 import core.sys.posix.sys.wait;
 import std.string : strip;
-import std.string : toLower;
-
-public enum RecordType
-{
-	A,
-	AAAA,
-	CNAME,
-	NS
-}
-
-public enum ZoneType
-{
-	STATIC
-}
+import std.string : toLower, toUpper;
+import std.array;
 
 private ulong cStringLen(char* cString)
 {
@@ -69,7 +57,10 @@ public final class UnboundControl
 		File readEnd = pipe.readEnd();
 		File writeEnd = pipe.writeEnd();
 
+		// Creates a pipe to collect stderr from `unbound-control`
+		// TODO: Add this in
 
+		// Fork from here
 		pid_t unboundCtlPid = fork();
 
 		// Child process
@@ -78,7 +69,7 @@ public final class UnboundControl
 			// Close file descriptor 1, make a new file descriptor 1 with fdptr as writeEnd.fileno()
 			dup2(writeEnd.fileno(), 1);
 
-			char*[] arguments = [makeCString(unboundCTLPath), makeCString(command), makeCString(data), null];
+			char*[] arguments = [makeCString(unboundCTLPath), makeCString("-s"), makeCString(endpoint), makeCString(command), makeCString(data), null];
 			if(execv(makeCString(unboundCTLPath), arguments.ptr) == -1)
 			{
 				writeln("Baad");
@@ -88,37 +79,61 @@ public final class UnboundControl
 		// Us (parent process)
 		else
 		{
-			int bruh = waitpid(unboundCtlPid, null, 0);
+			int wstatus;
+			int pid = waitpid(unboundCtlPid, &wstatus, 0);
 
-			if(bruh < 0)
+			// Close the write end of the pipe, allowing us to not block for eternity
+			writeEnd.close();
+
+			if(WEXITSTATUS(wstatus) != 0)
 			{
+				// TODO: Set `cmdOut` to stderr text
+				cmdOut = "TODO Stderr text";
 				return false;
-			}
-			
-			// Read at most 500 bytes from the stdout (redirected from `unbound-control`)
-			ubyte[] resp;
-			resp.length = 500;
-			long cnt = read(readEnd.fileno(), resp.ptr, resp.length); //D's read blocks forever, it passes some flags I don't vaab with
-
-			if(cnt < 0)
-			{
-
 			}
 			else
 			{
-				resp.length = cnt;
+				// FIXME: This should read till EOF (-1) - so put this in a loop
+				ubyte[] fullResponse;
+				ubyte[] temp;
+
+				while(true)
+				{
+					// Read 500 chunks at a time
+					temp.length = 500;
+					long cnt = read(readEnd.fileno(), temp.ptr, temp.length); //D's read blocks forever, it passes some flags I don't vaab with
+					writeln(cnt);
+
+
+					if(cnt <= 0)
+					{
+						break;
+					}
+					else
+					{
+						fullResponse ~= temp[0..cnt];
+					}
+				}
+
 			
 				// Strip newline
-				cmdOut = strip(cast(string)resp);
+				cmdOut = strip(cast(string)fullResponse);
+				
+
+				return true;
 			}
 		}
 
-		return true;
+		return false;
 	}
 
-	public void addLocalData(string domain, RecordType recordType, string value)
+	public void addLocalData(Record record)
 	{
 		// local_data deavmi.hax. IN A 1.1.1.1
+		string domain = record.domain;
+		RecordType recordType = record.recordType;
+		string value = record.value;
+
 		string dataOut;
 		bool status = ctl("local_data", domain~" IN "~to!(string)(recordType)~" "~value, dataOut);
 
@@ -161,6 +176,63 @@ public final class UnboundControl
 
 		bool status = ctl("verbosity", to!(string)(level), dataOut);
 	}
+
+	public Zone[] listLocalZones()
+	{
+		string zoneData;
+
+		bool status = ctl("list_local_zones", "", zoneData);
+
+		// If the records were returned into the `zoneData` string
+		if(status)
+		{
+			Zone[] zones;
+			foreach(string zoneInfo; split(zoneData, "\n"))
+			{
+				string[] zoneInfoSegments = split(zoneInfo, " ");
+
+				Zone curZone;
+				curZone.zone = zoneInfoSegments[0];
+				curZone.zoneType = to!(ZoneType)(toUpper(zoneInfoSegments[1]));
+				zones ~= curZone;
+			}
+
+			return zones;
+		}
+		// If an error occurred
+		else
+		{
+			// TODO: Throw an exception here
+			throw new Exception("Error occurred");
+		}
+	}
+}
+
+public enum RecordType
+{
+	A,
+	AAAA,
+	CNAME,
+	NS
+}
+
+public enum ZoneType
+{
+	STATIC,
+	REDIRECT
+}
+
+public struct Zone
+{
+	ZoneType zoneType;
+	string zone;
+}
+
+public struct Record
+{
+	string domain;
+	RecordType recordType;
+	string value;
 }
 
 unittest
@@ -168,11 +240,31 @@ unittest
 	UnboundControl unboundCtl = new UnboundControl("::1@8953");
 	unboundCtl.verbosity(5);
 	unboundCtl.addLocalZone("hax.", ZoneType.STATIC);
-	unboundCtl.addLocalData("deavmi.hax.", RecordType.A, "127.0.0.1");
-	unboundCtl.addLocalData("deavmi.hax.", RecordType.AAAA, "::1");
+	unboundCtl.addLocalData(Record("deavmi.hax.", RecordType.A, "127.0.0.1"));
+	unboundCtl.addLocalData(Record("deavmi.hax.", RecordType.AAAA, "::1"));
 
 	unboundCtl.removeLocalData("deavmi.hax.");
 
 	unboundCtl.removeLocalZone("hax.");
 }
 
+unittest
+{
+	UnboundControl unboundCtl = new UnboundControl("::1@8953");
+
+	writeln(unboundCtl.listLocalZones());
+}
+
+unittest
+{
+	UnboundControl unboundCtl = new UnboundControl("::1@8952");
+	try
+	{
+		unboundCtl.listLocalZones();
+		assert(false);
+	}
+	catch(Exception e)
+	{
+		assert(true);
+	}
+}
