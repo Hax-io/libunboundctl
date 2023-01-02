@@ -2,11 +2,11 @@ module libunboundctl;
 
 import std.stdio;
 import std.process : Pipe, pipeCreate = pipe;
-import std.conv : to;
+import std.conv : to, ConvException;
 import core.sys.posix.unistd;
 import core.sys.posix.sys.wait;
 import std.string : strip;
-import std.string : toLower, toUpper;
+import std.string : toLower, toUpper, cmp;
 import std.array;
 
 private ulong cStringLen(char* cString)
@@ -206,6 +206,77 @@ public final class UnboundControl
 			throw new Exception("Error occurred");
 		}
 	}
+
+	public Record[] listLocalData()
+	{
+		string recordData;
+
+		bool status = ctl("list_local_data", "", recordData);
+
+		// If the records were returned into the `zoneData` string
+		if(status)
+		{
+			Record[] records;
+			foreach(string recordInfo; split(recordData, "\n"))
+			{
+				// SKip the empty lines
+				if(cmp(recordInfo, "") == 0)
+				{
+					continue;
+				}
+				else
+				{
+					string[] recordInfoSegments = split(recordInfo, "\t");
+
+					Record curRecord;
+					string domain = recordInfoSegments[0];
+					ulong ttl = to!(ulong)(recordInfoSegments[1]);
+
+					try
+					{
+						RecordType recordType = to!(RecordType)(recordInfoSegments[3]);
+
+						curRecord.domain = domain;
+						curRecord.ttl = ttl;
+						curRecord.recordType = recordType;
+
+						if(recordType == RecordType.NS || recordType == RecordType.A || 
+						  recordType == RecordType.AAAA || recordType == RecordType.CNAME ||
+						  recordType == RecordType.PTR
+						)
+						{
+							curRecord.value = recordInfoSegments[4];
+						}
+						else if(recordType == RecordType.SOA)
+						{
+							// TODO: Implement SOA handling
+						}
+						else
+						{
+							writeln("This should never happen");
+							assert(false);
+						}
+					}
+					catch(ConvException e)
+					{
+						// TODO: Throw an exception here
+						throw new Exception("Error occurred");
+					}
+					
+					records ~= curRecord;
+				}
+				
+			}
+
+			return records;
+		}
+		// If an error occurred
+		else
+		{
+			// TODO: Throw an exception here
+			throw new Exception("Error occurred");
+		}
+	}
 }
 
 public enum RecordType
@@ -213,7 +284,9 @@ public enum RecordType
 	A,
 	AAAA,
 	CNAME,
-	NS
+	NS,
+	SOA,
+	PTR
 }
 
 public enum ZoneType
@@ -233,6 +306,7 @@ public struct Record
 	string domain;
 	RecordType recordType;
 	string value;
+	ulong ttl;
 }
 
 unittest
@@ -252,7 +326,19 @@ unittest
 {
 	UnboundControl unboundCtl = new UnboundControl("::1@8953");
 
-	writeln(unboundCtl.listLocalZones());
+	try
+	{
+		Zone[] zones = unboundCtl.listLocalZones();
+		writeln(zones);
+
+		Record[] records = unboundCtl.listLocalData();
+		writeln(records);
+	}
+	catch(Exception e)
+	{
+		assert(false);
+	}
+	
 }
 
 unittest
