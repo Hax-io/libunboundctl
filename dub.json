@@ -3,7 +3,7 @@
 		"Tristan B. Velloza Kildaire"
 	],
 	"copyright": "Copyright © 2022, Tristan B. Velloza Kildaire",
-	"description": "Programatic method of controlling unbound",
+	"description": "Wrapper for the Unbound DNS unbound-control",
 	"license": "LGPL 3.0",
 	"name": "unbound-control",
 	"targetType": "library"
